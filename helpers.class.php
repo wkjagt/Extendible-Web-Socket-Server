@@ -10,8 +10,12 @@ class WSHelpers{
      * @return
      *    response header
      */
-    static function getResponseHeaders($buffer = ''){
+    static function getResponseHeaders($buffer = '', $uniqueOrigin = FALSE){
         list($resource, $host, $origin, $strkey1, $strkey2, $data) = self::getRequestHeaders($buffer);
+        if(!self::validOrigin($origin, $uniqueOrigin)){
+            self::console('Refusing connection from origin %s. Allowed origin(s): %s', array($origin, implode(', ', $uniqueOrigin)));
+            return FALSE;
+        }
 
         // find numbers
         $pattern = '/[^\d]*/';
@@ -42,6 +46,13 @@ class WSHelpers{
                "Sec-WebSocket-Origin: " . $origin . "\r\n" .
                "Sec-WebSocket-Location: ws://" . $host . $resource . "\r\n" .
                "\r\n" . $hash_data;
+    }
+
+    static function validOrigin($origin, $uniqueOrigin){
+        if(is_array($uniqueOrigin)) {
+            return in_array($origin, $uniqueOrigin);
+        }
+        return TRUE;
     }
 
     /**

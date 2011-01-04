@@ -321,7 +321,7 @@ abstract class WebSocketServer
      */
     private final function doHandshake($user, $buffer){
         WSHelpers::console("\nRequesting handshake for user %s", $user->id);
-        if(!$upgrade = WSHelpers::getResponseHeaders($buffer)){
+        if(!$upgrade = WSHelpers::getResponseHeaders($buffer, $this->config->uniqueOrigin)){
             return FALSE;
         }
         socket_write($user->socket, $upgrade . chr(0), strlen($upgrade . chr(0)));

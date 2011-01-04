@@ -96,8 +96,13 @@ In the following, $user is the complete user object, and $msg is the message (st
         sendToAllBut($user, $msg)
 
 Message formats:
--------------------------
-The server adds the opening and closing characters for correctly sending it over a socket connections, and removes them when a message is received. If you send an object or array as message, the server will encode it to json. If the server receives a message in json format, it will be converted to an object or array for internal use. _All hooks and the process method can use objects and arrays as messages, the server will do the conversion where appropriate._
+----------------
+The server adds the opening and closing characters for correctly sending it over a socket connection, and removes them when a message is received. If you send an object or array as message, the server will encode it to json. If the server receives a message in json format, it will be converted to an object or array for internal use. _All hooks and the process method can use objects and arrays as messages, the server will do the conversion where appropriate._
+
+
+Unique origins
+--------------
+The server can be configured to allow connections from any origin, or you may supply a list of allowed origins. Please see config.class.php for more details.
 
 
 Thanks!

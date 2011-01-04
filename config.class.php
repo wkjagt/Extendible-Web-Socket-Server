@@ -35,4 +35,14 @@ class WSBaseConfig {
      * Name of class to use when creating a new user
      */
     public $userClass = 'WSBaseUser';
+    
+    /**
+     * If this value is an array, only connections having an origin that's present
+     * in the array are allowed. Any other connections will be refused.
+     * To allow all origins, set this value to FALSE
+     * If you're unable to connect when using an array, please check the debug message
+     * sent to the terminal. This will state the origin that tried to connect, and a
+     * list of allowed origins.
+     */
+     public $uniqueOrigin = FALSE;
 }
