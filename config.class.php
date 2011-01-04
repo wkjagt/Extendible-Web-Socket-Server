@@ -24,7 +24,7 @@ class WSBaseConfig {
     /**
      * Maximum number of users connected at the same time
      */
-    public $maxUsers = 3;
+    public $maxUsers = 1000;
 
     /**
      * Debug (true or false)

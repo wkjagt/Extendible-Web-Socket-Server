@@ -103,4 +103,4 @@ The server adds the opening and closing characters for correctly sending it over
 Thanks!
 -------
 
-A big thank you goes to georgenava, whose example code was great for learning how to do a basic implementation of websockets in PHP. The run() method in my implementation and some other parts are taken almost literally from his code at http://code.google.com/p/phpwebsocket/
+A big thank you goes to georgenava, whose example code was great for learning how to do a basic implementation of websockets in PHP. The run() method in my implementation and some other parts are taken almost literally from his code at http://code.google.com/p/phpwebsocket/ and https://github.com/GeorgeNava/phpwebsocket
