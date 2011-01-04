@@ -1,12 +1,6 @@
 <?php
 /**
- * Configurations for Web Socket Server. If you wish to use your own
- * config class, please implement the configClass() method in your server
- * class. Example:
- *
- * function configClass(){
- *     return 'MyConfigClass';
- * }
+ * Configurations for Web Socket Server.
  *
  */
 class WSBaseConfig {
@@ -23,16 +17,23 @@ class WSBaseConfig {
     
     /**
      * Maximum number of users connected at the same time
+     * NOTE: if a user tries to connect, the server first verifies if any connected clients
+     * have been idle too long (this period is set in the user object) to free as many connections
+     * as possible. If after that there are still no available sockets, the new connection will
+     * not be accepted.
      */
     public $maxUsers = 1000;
 
     /**
      * Debug (true or false)
+     * Sets the error reporting level.
      */
     public $debug = true;
     
     /**
      * Name of class to use when creating a new user
+     * This may be changed, but be aware that a class must extend
+     * the WSBaseUser class
      */
     public $userClass = 'WSBaseUser';
     
