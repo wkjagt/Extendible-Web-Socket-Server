@@ -10,6 +10,8 @@ class WSHelpers{
      * @return
      *    response header
      */
+    private $initFrame;
+    private $masks;
     static function getResponseHeaders($buffer = '', $uniqueOrigin = FALSE){
         list($resource, $host, $origin, $strkey1, $strkey2, $data,$key) = self::getRequestHeaders($buffer);
         if(!self::validOrigin($origin, $uniqueOrigin)){
@@ -113,7 +115,7 @@ class WSHelpers{
         if(is_object($msg) || is_array($msg)){
             $msg = json_encode($msg);
         }
-        return chr(0) . $msg . chr(255);
+        return self::encode($msg);
     }
 	
     /**
@@ -125,9 +127,14 @@ class WSHelpers{
      *    The unwrapped string
      */
     static function unwrap($msg = ''){
-        $msg = substr($msg, 1, strlen($msg) - 2);
+        $msg = self::decode($msg);
+        if(isset($msg['type']) AND $msg['type'] == "text"){
+        	$msg = $msg['payload'];
+        }
+        else{
         if(json_decode($msg) !== null){
             $msg = json_decode($msg);
+        }
         }
         return $msg;
     }
@@ -146,4 +153,168 @@ class WSHelpers{
      $sha = sha1($key.$CRAZY,true);
      return base64_encode($sha);
 	}
+	private function encode($data)
+	{
+	$databuffer = array();
+	$sendlength = strlen($data);
+	$rawBytesSend = $sendlength + 2;
+	$packet;
+	if ($sendlength > 65535) {
+    // 64bit
+    array_pad($databuffer, 10, 0);
+    $databuffer[1] = 127;
+    $lo = $sendlength | 0;
+    $hi = ($sendlength - $lo) / 4294967296;
+
+    $databuffer[2] = ($hi >> 24) & 255;
+    $databuffer[3] = ($hi >> 16) & 255;
+    $databuffer[4] = ($hi >> 8) & 255;
+    $databuffer[5] = $hi & 255;
+
+    $databuffer[6] = ($lo >> 24) & 255;
+    $databuffer[7] = ($lo >> 16) & 255;
+    $databuffer[8] = ($lo >> 8) & 255;
+    $databuffer[9] = $lo & 255;
+
+    $rawBytesSend += 8;
+	} else if ($sendlength > 125) {
+    // 16 bit
+    array_pad($databuffer, 4, 0);
+    $databuffer[1] = 126;
+    $databuffer[2] = ($sendlength >> 8) & 255;
+    $databuffer[3] = $sendlength & 255;
+
+    $rawBytesSend += 2;
+	} else {
+    array_pad($databuffer, 2, 0);
+    $databuffer[1] = $sendlength;
+	}
+
+	// Set op and find
+	$databuffer[0] = (128 + ($binary ? 2 : 1));
+	$packet = pack('c', $databuffer[0]);
+	// Clear masking bit
+	 $databuffer[1] &= ~128;
+	// write out the packet header
+	for ($i = 1; $i < count($databuffer); $i++) {
+    //$packet .= $databuffer[$i];
+    $packet .= pack('c', $databuffer[$i]);
+	}
+
+	// write out the packet data
+	for ($i = 0; $i < $sendlength; $i++) {
+    $packet .= $data[$i];
+	}
+	return $packet;
+	}
+	private function decode($data)
+	/// Decoding 
+	
+	{
+		$payloadLength = '';
+		$mask = '';
+		$unmaskedPayload = '';
+		$decodedData = array();
+
+		// estimate frame type:
+		$firstByteBinary = sprintf('%08b', ord($data[0]));		
+		$secondByteBinary = sprintf('%08b', ord($data[1]));
+		$opcode = bindec(substr($firstByteBinary, 4, 4));
+		$isMasked = ($secondByteBinary[0] == '1') ? true : false;
+		$payloadLength = ord($data[1]) & 127;
+
+		// close connection if unmasked frame is received:
+		if($isMasked === false)
+		{
+			$this->close(1002);
+		}
+
+		switch($opcode)
+		{
+			// text frame:
+			case 1:
+				$decodedData['type'] = 'text';				
+			break;
+
+			case 2:
+				$decodedData['type'] = 'binary';
+			break;
+
+			// connection close frame:
+			case 8:
+				$decodedData['type'] = 'close';
+			break;
+
+			// ping frame:
+			case 9:
+				$decodedData['type'] = 'ping';				
+			break;
+
+			// pong frame:
+			case 10:
+				$decodedData['type'] = 'pong';
+			break;
+
+			default:
+				// Close connection on unknown opcode:
+				$this->close(1003);
+			break;
+		}
+
+		if($payloadLength === 126)
+		{
+		   $mask = substr($data, 4, 4);
+		   $payloadOffset = 8;
+		   $dataLength = bindec(sprintf('%08b', ord($data[2])) . sprintf('%08b', ord($data[3]))) + $payloadOffset;
+		}
+		elseif($payloadLength === 127)
+		{
+			$mask = substr($data, 10, 4);
+			$payloadOffset = 14;
+			$tmp = '';
+			for($i = 0; $i < 8; $i++)
+			{
+				$tmp .= sprintf('%08b', ord($data[$i+2]));
+			}
+			$dataLength = bindec($tmp) + $payloadOffset;
+			unset($tmp);
+		}
+		else
+		{
+			$mask = substr($data, 2, 4);	
+			$payloadOffset = 6;
+			$dataLength = $payloadLength + $payloadOffset;
+		}
+
+		/**
+		 * We have to check for large frames here. socket_recv cuts at 1024 bytes
+		 * so if websocket-frame is > 1024 bytes we have to wait until whole
+		 * data is transferd. 
+		 */
+		if(strlen($data) < $dataLength)
+		{			
+			return false;
+		}
+
+		if($isMasked === true)
+		{
+			for($i = $payloadOffset; $i < $dataLength; $i++)
+			{
+				$j = $i - $payloadOffset;
+				if(isset($data[$i]))
+				{
+					$unmaskedPayload .= $data[$i] ^ $mask[$j % 4];
+				}
+			}
+			$decodedData['payload'] = $unmaskedPayload;
+		}
+		else
+		{
+			$payloadOffset = $payloadOffset - 4;
+			$decodedData['payload'] = substr($data, $payloadOffset);
+		}
+
+		return $decodedData;
+	}
+
 }
