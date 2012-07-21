@@ -11,7 +11,7 @@ class WSHelpers{
      *    response header
      */
     static function getResponseHeaders($buffer = '', $uniqueOrigin = FALSE){
-        list($resource, $host, $origin, $strkey1, $strkey2, $data) = self::getRequestHeaders($buffer);
+        list($resource, $host, $origin, $strkey1, $strkey2, $data,$key) = self::getRequestHeaders($buffer);
         if(!self::validOrigin($origin, $uniqueOrigin)){
             self::console('Refusing connection from origin %s. Allowed origin(s): %s', array($origin, implode(', ', $uniqueOrigin)));
             return FALSE;
@@ -29,23 +29,22 @@ class WSHelpers{
         $spaces1 = strlen(preg_replace($pattern, $replacement, $strkey1));
         $spaces2 = strlen(preg_replace($pattern, $replacement, $strkey2));
 
-        if ($spaces1 == 0 || $spaces2 == 0 || $numkey1 % $spaces1 != 0 || $numkey2 % $spaces2 != 0) {
-            WSHelpers::console('Handshake failed');
-            return FALSE;
-        }
-
-        $ctx = hash_init('md5');
-        hash_update($ctx, pack("N", $numkey1 / $spaces1));
-        hash_update($ctx, pack("N", $numkey2 / $spaces2));
-        hash_update($ctx, $data);
-        $hash_data = hash_final($ctx, TRUE);
-
+       if ($spaces1 == 0 || $spaces2 == 0 || $numkey1 % $spaces1 != 0 || $numkey2 % $spaces2 != 0) {
+				$hash_data = self::calcKey($key);
+         }else{       
+           $ctx = hash_init('md5');
+           hash_update($ctx, pack("N", $numkey1 / $spaces1));
+           hash_update($ctx, pack("N", $numkey2 / $spaces2));
+           hash_update($ctx, $data);
+           $hash_data = hash_final($ctx, TRUE);
+		}
         return "HTTP/1.1 101 WebSocket Protocol Handshake\r\n" .
                "Upgrade: WebSocket\r\n" .
                "Connection: Upgrade\r\n" .
                "Sec-WebSocket-Origin: " . $origin . "\r\n" .
+               "Sec-WebSocket-Accept: ".$hash_data. "\r\n".
                "Sec-WebSocket-Location: ws://" . $host . $resource . "\r\n" .
-               "\r\n" . $hash_data;
+               "\r\n";
     }
 
     static function validOrigin($origin, $uniqueOrigin){
@@ -65,17 +64,17 @@ class WSHelpers{
      *    resource, host, origin, key1, key2, data
      */
     static function getRequestHeaders($req){
-        $r = $h = $o = $key1 = $key2 = $data = null;
+        $r = $h = $o = $key1 = $key2 = $data = $key = null;
         if(preg_match("/GET (.*) HTTP/"   , $req, $match))              { $r=$match[1];    }
         if(preg_match("/Host: (.*)\r\n/"  , $req, $match))              { $h=$match[1];    }
         if(preg_match("/Origin: (.*)\r\n/", $req, $match))              { $o=$match[1];    }
         if(preg_match("/Sec-WebSocket-Key2: (.*)\r\n/", $req, $match))  { $key2=$match[1]; }
         if(preg_match("/Sec-WebSocket-Key1: (.*)\r\n/", $req, $match))  { $key1=$match[1]; }
         if(preg_match("/\r\n(.*?)\$/", $req, $match))                   { $data=$match[1]; }
-        return array($r, $h, $o, $key1, $key2, $data);
+        if(preg_match("/Sec-WebSocket-Key: (.*)\r\n/",$req,$match)){$key = $match[1]; }
+
+        return array($r, $h, $o, $key1, $key2, $data,$key);
     }
-    
-    
     /**
      * Verify if a class exists and if it extends a base class
      *
@@ -110,13 +109,13 @@ class WSHelpers{
      * @return
      *    The message wrapped up for sending
      */
-    static function wrap($msg = ''){
+    static function wrap($msg= ''){
         if(is_object($msg) || is_array($msg)){
             $msg = json_encode($msg);
         }
         return chr(0) . $msg . chr(255);
     }
-
+	
     /**
      * Remove wrapper characters from received message
      *
@@ -142,4 +141,9 @@ class WSHelpers{
     static function console($msg = '', $vars = array()){
         vprintf($msg . "\n", $vars);
     }
+    function calcKey($key){
+     $CRAZY = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+     $sha = sha1($key.$CRAZY,true);
+     return base64_encode($sha);
+	}
 }
